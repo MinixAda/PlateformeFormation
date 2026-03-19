@@ -1,5 +1,6 @@
 ﻿using PlateformeFormation.Domain.Entities;
 
+
 namespace PlateformeFormation.Domain.Interfaces
 {
     public interface IUtilisateurRepository

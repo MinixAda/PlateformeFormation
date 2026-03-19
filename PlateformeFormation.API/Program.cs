@@ -10,10 +10,14 @@ using PlateformeFormation.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
 // 1) Ajoute les controllers
+
 builder.Services.AddControllers();
 
-// 2) Swagger pour tester l'API
+
+// 2) Swagger + support JWT dans Swagger
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -23,7 +27,7 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 
-    // Support JWT dans Swagger
+    // Permet d'envoyer un token JWT dans Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -48,30 +52,43 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+
 // 3) Enregistre la fabrique de connexion SQL
+
 builder.Services.AddSingleton<DbConnectionFactory>();
 
+
 // 4) Enregistre une connexion IDbConnection par requête HTTP
+
 builder.Services.AddScoped<IDbConnection>(sp =>
 {
     var factory = sp.GetRequiredService<DbConnectionFactory>();
     return factory.CreateConnection();
 });
 
+
 // 5) Enregistrer les repositories
+
 builder.Services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+builder.Services.AddScoped<IFormationRepository, FormationRepository>();
+//builder.Services.AddScoped<IFormationRepository, FormationRepository>();
+
+
 
 // 6) Enregistre le service de mot de passe (BCrypt)
+
 builder.Services.AddSingleton<PasswordService>();
 
+
 // 7) Configuration JWT
+
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
 
 if (string.IsNullOrWhiteSpace(jwtKey))
-    throw new Exception("La clé JWT 'Jwt:Key' est manquante dans appsettings.json");
+    throw new Exception("La clef JWT 'Jwt:Key' est manquante dans appsettings.json");
 
 if (string.IsNullOrWhiteSpace(jwtIssuer))
     throw new Exception("Le paramètre 'Jwt:Issuer' est manquant dans appsettings.json");
@@ -79,7 +96,7 @@ if (string.IsNullOrWhiteSpace(jwtIssuer))
 if (string.IsNullOrWhiteSpace(jwtAudience))
     throw new Exception("Le paramètre 'Jwt:Audience' est manquant dans appsettings.json");
 
-// Activation de l'authentification JWT
+// Active l'authentification JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -94,21 +111,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// 8) Active l'autorisation
-builder.Services.AddAuthorization();
 
-/* Test : Génération d’un hash BCrypt pour "Admin123!"
-var tempPasswordService = new PasswordService();
-var generatedHash = tempPasswordService.HashPassword("Admin123!");
-Console.WriteLine("=== HASH GÉNÉRÉ POUR Admin123! ===");
-Console.WriteLine(generatedHash);
-Console.WriteLine("===================================");
-// Copier ce hash dans SQL, puis supprimer ces 6 lignes.
-*/
+// 8) Active l'autorisation
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// 9) Active Swagger en dev
+
+// 9) Active Swagger en développement
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -120,15 +132,21 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+
 // 10) Active l'authentification + autorisation
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 // Redirection automatique vers Swagger
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
+
 // 11) Mapping des controllers
+
 app.MapControllers();
 
+
 // 12) Lance l'application
+
 app.Run();
