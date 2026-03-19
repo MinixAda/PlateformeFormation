@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="PlateformeFormation.API/PlateformeFormation.API.csproj" />
+  <Project Path="PlateformeFormation.Domain/PlateformeFormation.Domain.csproj" />
+  <Project Path="PlateformeFormation.Infrastructure/PlateformeFormation.Infrastructure.csproj" />
+</Solution>

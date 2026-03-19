@@ -1,0 +1,6 @@
+@PlateformeFormation.API_HostAddress = http://localhost:5152
+
+GET {{PlateformeFormation.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
