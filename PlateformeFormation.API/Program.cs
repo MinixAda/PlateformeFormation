@@ -72,6 +72,8 @@ builder.Services.AddScoped<IDbConnection>(sp =>
 builder.Services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IFormationRepository, FormationRepository>();
+builder.Services.AddScoped<IFormationPrerequisRepository, FormationPrerequisRepository>();
+
 //builder.Services.AddScoped<IFormationRepository, FormationRepository>();
 
 
