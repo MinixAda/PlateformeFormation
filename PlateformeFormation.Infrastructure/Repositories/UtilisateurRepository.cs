@@ -1,7 +1,7 @@
 ﻿using Dapper;
-using System.Data;
 using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
+using System.Data;
 
 namespace PlateformeFormation.Infrastructure.Repositories
 {
@@ -12,6 +12,12 @@ namespace PlateformeFormation.Infrastructure.Repositories
         public UtilisateurRepository(IDbConnection db)
         {
             _db = db;
+        }
+
+        public async Task<IEnumerable<Utilisateur>> GetAllAsync()
+        {
+            var sql = "SELECT * FROM Utilisateur";
+            return await _db.QueryAsync<Utilisateur>(sql);
         }
 
         public async Task<Utilisateur?> GetByEmailAsync(string email)
@@ -26,19 +32,11 @@ namespace PlateformeFormation.Infrastructure.Repositories
             return await _db.QueryFirstOrDefaultAsync<Utilisateur>(sql, new { Id = id });
         }
 
-        public async Task<IEnumerable<Utilisateur>> GetAllAsync()
-        {
-            var sql = "SELECT * FROM Utilisateur";
-            return await _db.QueryAsync<Utilisateur>(sql);
-        }
-
-        // Implémentation de CreateAsync (nom aligné sur l'interface)
         public async Task CreateAsync(Utilisateur user)
         {
             var sql = @"
                 INSERT INTO Utilisateur (Nom, Prenom, Email, MotDePasseHash, RoleId)
-                VALUES (@Nom, @Prenom, @Email, @MotDePasseHash, @RoleId);
-            ";
+                VALUES (@Nom, @Prenom, @Email, @MotDePasseHash, @RoleId)";
 
             await _db.ExecuteAsync(sql, user);
         }
@@ -50,10 +48,8 @@ namespace PlateformeFormation.Infrastructure.Repositories
                 SET Nom = @Nom,
                     Prenom = @Prenom,
                     Email = @Email,
-                    MotDePasseHash = @MotDePasseHash,
                     RoleId = @RoleId
-                WHERE Id = @Id;
-            ";
+                WHERE Id = @Id";
 
             await _db.ExecuteAsync(sql, user);
         }
@@ -62,6 +58,17 @@ namespace PlateformeFormation.Infrastructure.Repositories
         {
             var sql = "DELETE FROM Utilisateur WHERE Id = @Id";
             await _db.ExecuteAsync(sql, new { Id = id });
+        }
+
+        public async Task UpdatePasswordAsync(Utilisateur utilisateur)
+        {
+            var sql = "UPDATE Utilisateur SET MotDePasseHash = @Hash WHERE Id = @Id";
+
+            await _db.ExecuteAsync(sql, new
+            {
+                Hash = utilisateur.MotDePasseHash,
+                Id = utilisateur.Id
+            });
         }
     }
 }

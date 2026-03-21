@@ -1,9 +1,9 @@
-﻿namespace PlateformeFormation.Domain.Entities
+﻿namespace PlateformeFormation.API.Dtos.Role
 {
     
-    // Représente un rôle utilisateur (Admin, Formateur, Apprenant).
+    // DTO renvoyé au client pour représenter un rôle.
     
-    public class Role
+    public class RoleReadDto
     {
         
         // Identifiant unique du rôle.

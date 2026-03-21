@@ -30,7 +30,7 @@ namespace PlateformeFormation.Domain.Entities
         
         public int CreateurId { get; set; }
 
-        // --- Nouveaux champs avancés ---
+     
 
         
         // Type de média principal : video, pdf, tp, qcm, etc.

@@ -1,15 +1,14 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlateformeFormation.API.Dtos.Prerequis;
+using PlateformeFormation.API.Dtos;
 using PlateformeFormation.Domain.Interfaces;
 
 namespace PlateformeFormation.API.Controllers
 {
     
-    // Controller gérant les prérequis entre formations.
+    // Gère les prérequis entre formations.
+    // Permet d'ajouter, retirer et consulter les prérequis.
     
     [Route("api/[controller]")]
     [ApiController]
@@ -27,57 +26,98 @@ namespace PlateformeFormation.API.Controllers
         }
 
         
-        // Récupère les prérequis d'une formation.
+        // GET : Récupérer les prérequis d'une formation
+        
+        
+        // Récupère la liste des prérequis d'une formation donnée.
         
         [HttpGet("{formationId}")]
         public async Task<ActionResult<IEnumerable<FormationPrerequisReadDto>>> GetPrerequis(int formationId)
         {
-            var prerequis = await _repo.GetPrerequisAsync(formationId);
-
-            var result = prerequis.Select(p => new FormationPrerequisReadDto
+            try
             {
-                FormationId = p.FormationId,
-                FormationRequiseId = p.FormationRequiseId
-            });
+                // Vérifier que la formation existe
+                var formation = await _formationRepo.GetByIdAsync(formationId);
+                if (formation == null)
+                    return NotFound("Formation introuvable.");
 
-            return Ok(result);
+                var prerequis = await _repo.GetPrerequisAsync(formationId);
+
+                var result = prerequis.Select(p => new FormationPrerequisReadDto
+                {
+                    FormationId = p.FormationId,
+                    FormationRequiseId = p.FormationRequiseId
+                });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors de la récupération des prérequis : {ex.Message}");
+            }
         }
 
         
-        // Ajoute un prérequis à une formation (Admin uniquement).
+        // POST : Ajouter un prérequis
+        
+        
+        // Ajoute un prérequis à une formation.
+        // Accessible uniquement aux administrateurs.
         
         [HttpPost("{formationId}")]
-        [Authorize(Roles = "1")]
+        [Authorize(Roles = "1")] // Admin uniquement
         public async Task<ActionResult> AddPrerequis(int formationId, [FromBody] FormationPrerequisCreateDto dto)
         {
-            // Vérifier que les formations existent
-            if (await _formationRepo.GetByIdAsync(formationId) == null)
-                return BadRequest("La formation cible n'existe pas.");
+            try
+            {
+                // Vérifier que la formation cible existe
+                var formation = await _formationRepo.GetByIdAsync(formationId);
+                if (formation == null)
+                    return BadRequest("La formation cible n'existe pas.");
 
-            if (await _formationRepo.GetByIdAsync(dto.FormationRequiseId) == null)
-                return BadRequest("La formation prérequise n'existe pas.");
+                // Vérifier que la formation prérequise existe
+                var formationRequise = await _formationRepo.GetByIdAsync(dto.FormationRequiseId);
+                if (formationRequise == null)
+                    return BadRequest("La formation prérequise n'existe pas.");
 
-            var added = await _repo.AddPrerequisAsync(formationId, dto.FormationRequiseId);
+                // Ajouter le prérequis
+                var added = await _repo.AddPrerequisAsync(formationId, dto.FormationRequiseId);
 
-            if (!added)
-                return BadRequest("Ce prérequis existe déjà pour cette formation.");
+                if (!added)
+                    return BadRequest("Ce prérequis existe déjà.");
 
-            return Ok("Prérequis ajouté avec succès.");
+                return Ok("Prérequis ajouté avec succès.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors de l'ajout du prérequis : {ex.Message}");
+            }
         }
 
         
-        // Supprime un prérequis (Admin uniquement).
+        // DELETE : Supprimer un prérequis
+        
+        
+        // Supprime un prérequis entre deux formations.
+        // Accessible uniquement aux administrateurs.
         
         [HttpDelete("{formationId}/{formationRequiseId}")]
-        [Authorize(Roles = "1")]
+        [Authorize(Roles = "1")] // Admin uniquement
         public async Task<ActionResult> RemovePrerequis(int formationId, int formationRequiseId)
         {
-            var removed = await _repo.RemovePrerequisAsync(formationId, formationRequiseId);
+            try
+            {
+                var removed = await _repo.RemovePrerequisAsync(formationId, formationRequiseId);
 
-            if (!removed)
-                return BadRequest("Impossible de supprimer : ce prérequis n'existe pas pour cette formation.");
+                if (!removed)
+                    return BadRequest("Ce prérequis n'existe pas.");
 
-            return Ok("Prérequis supprimé avec succès.");
+                return Ok("Prérequis supprimé avec succès.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors de la suppression du prérequis : {ex.Message}");
+            }
         }
     }
 }

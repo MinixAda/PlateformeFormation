@@ -1,6 +1,8 @@
 ﻿using BCrypt.Net;
 //using BCrypt.Net.BCrypt;
 
+
+
 namespace PlateformeFormation.Infrastructure.Services
 {
     public class PasswordService

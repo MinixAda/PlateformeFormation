@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using PlateformeFormation.API.Middleware;
 using PlateformeFormation.Domain.Interfaces;
 using PlateformeFormation.Infrastructure.Database;
 using PlateformeFormation.Infrastructure.Repositories;
@@ -11,12 +12,17 @@ using PlateformeFormation.Infrastructure.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 
-// 1) Ajoute les controllers
+
+// 1) Configuration des services et de l'injection de dépendances
+// Ajoute le support MVC / API Controllers.
+// Toutes les routes définies dans les controllers seront automatiquement mappées.
 
 builder.Services.AddControllers();
 
 
-// 2) Swagger + support JWT dans Swagger
+
+// 2) Swagger + Support JWT dans Swagger 
+// Permet d'exposer la documentation API + d'envoyer un token JWT dans Swagger.
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -27,7 +33,7 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 
-    // Permet d'envoyer un token JWT dans Swagger
+    // Permet d'envoyer un token JWT dans Swagger via le bouton "Authorize"
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -36,6 +42,7 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey
     });
 
+    // Oblige Swagger à utiliser le token pour les endpoints protégés
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -53,12 +60,16 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 
-// 3) Enregistre la fabrique de connexion SQL
+// 3) Fabrication de la connexion SQL
+// DbConnectionFactory encapsule la logique de création de connexions SQL.
+// On l'enregistre en Singleton car elle ne contient pas d'état.
 
 builder.Services.AddSingleton<DbConnectionFactory>();
 
+// 4) Identifiantion de la connexion SQL pour Dapper
 
-// 4) Enregistre une connexion IDbConnection par requête HTTP
+// Chaque requête HTTP obtient sa propre connexion SQL.
+// Dapper utilisera cette connexion pour exécuter les requêtes.
 
 builder.Services.AddScoped<IDbConnection>(sp =>
 {
@@ -66,25 +77,31 @@ builder.Services.AddScoped<IDbConnection>(sp =>
     return factory.CreateConnection();
 });
 
-
-// 5) Enregistrer les repositories
+// 5) Repositories
+// Tous les repositories utilisés dans le projet sont enregistrés ici.
+// Chaque requête HTTP obtient sa propre instance.
 
 builder.Services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IFormationRepository, FormationRepository>();
 builder.Services.AddScoped<IFormationPrerequisRepository, FormationPrerequisRepository>();
+builder.Services.AddScoped<IInscriptionRepository, InscriptionRepository>();
+builder.Services.AddScoped<IModuleProgressionRepository, ModuleProgressionRepository>();
 
-//builder.Services.AddScoped<IFormationRepository, FormationRepository>();
 
-
-
-// 6) Enregistre le service de mot de passe (BCrypt)
+// 6) Services métiers (PasswordService, JwtService, etc.)
+// PasswordService utilise BCrypt → stateless → Singleton OK.
 
 builder.Services.AddSingleton<PasswordService>();
 
+// JwtService dépend de IConfiguration → Scoped ou Singleton possible.
+// On choisit Scoped pour rester cohérent avec les repositories.
+
+builder.Services.AddScoped<JwtService>();
 
 // 7) Configuration JWT
-
+// Lecture des paramètres depuis appsettings.json.
+// Vérification obligatoire pour éviter les erreurs silencieuses.
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
@@ -98,10 +115,18 @@ if (string.IsNullOrWhiteSpace(jwtIssuer))
 if (string.IsNullOrWhiteSpace(jwtAudience))
     throw new Exception("Le paramètre 'Jwt:Audience' est manquant dans appsettings.json");
 
+
 // Active l'authentification JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // En dev, Swagger utilise HTTP → pas besoin de HTTPS obligatoire
+        options.RequireHttpsMetadata = false;
+
+        // Permet de récupérer le token via HttpContext
+        options.SaveToken = true;
+
+        // Paramètres de validation du token
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -109,19 +134,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+
+            // Pas de délai de tolérance → expiration stricte
+            ClockSkew = TimeSpan.Zero
         };
     });
 
-
-// 8) Active l'autorisation
+// 8) Autorisation
+// Active le système d'autorisations basé sur les rôles et les claims.
 
 builder.Services.AddAuthorization();
 
+// Build de l'application avec tous les services et configurations définis ci-dessus.
+
 var app = builder.Build();
 
+// 9) Middleware de gestion des erreurs
+// Intercepte toutes les exceptions non gérées et renvoie une réponse JSON propre
 
-// 9) Active Swagger en développement
+app.UseMiddleware<ErrorHandlingMiddleware>();
+
+// 10) Swagger uniquement en développement pour éviter d'exposer la documentation en production
 
 if (app.Environment.IsDevelopment())
 {
@@ -132,23 +166,23 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+// 11) Redirection HTTP → HTTPS
+
 app.UseHttpsRedirection();
 
-
-// 10) Active l'authentification + autorisation
+// 12) Authentification et Autorisation
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Redirection automatique vers Swagger
+// 13) Redirection de la racine vers Swagger pour faciliter les tests en développement
+
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-
-// 11) Mapping des controllers
+// 14) Mapping des controllers
 
 app.MapControllers();
 
-
-// 12) Lance l'application
+// 15) Lancement de l'application
 
 app.Run();

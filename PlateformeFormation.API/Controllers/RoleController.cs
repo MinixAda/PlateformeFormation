@@ -1,96 +1,122 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using PlateformeFormation.API.Dtos.Role;
 using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
 
 namespace PlateformeFormation.API.Controllers
 {
+    
+    // Contrôleur gérant les rôles (Admin, Formateur, Apprenant, etc.).
+    
     [ApiController]
     [Route("api/[controller]")]
-
-    // Seul l'Admin (RoleId = 1) peut accéder à ce controller
-    [Authorize(Roles = "1")]
     public class RoleController : ControllerBase
     {
-        private readonly IRoleRepository _roleRepository;
+        private readonly IRoleRepository _repo;
 
-        public RoleController(IRoleRepository roleRepository)
+        public RoleController(IRoleRepository repo)
         {
-            _roleRepository = roleRepository;
+            _repo = repo;
         }
 
         
-        // GET : api/role
-        // Récupère tous les rôles
+        // Récupère la liste de tous les rôles.
         
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Role>>> GetAll()
+        public async Task<ActionResult<IEnumerable<RoleReadDto>>> GetAll()
         {
-            var roles = await _roleRepository.GetAllAsync();
-            return Ok(roles);
+            try
+            {
+                var roles = await _repo.GetAllAsync();
+
+                var result = roles.Select(r => new RoleReadDto
+                {
+                    Id = r.Id,
+                    Nom = r.Nom
+                });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500,
+                    $"Erreur lors de la récupération des rôles : {ex.Message}");
+            }
         }
 
         
-        // GET : api/role/id/{id}
-        // Récupère un rôle par son ID
+        // Récupère un rôle par son identifiant.
         
-        [HttpGet("id/{id}")]
-        public async Task<ActionResult<Role>> GetById(int id)
+        [HttpGet("{id}")]
+        public async Task<ActionResult<RoleReadDto>> GetById(int id)
         {
-            var role = await _roleRepository.GetByIdAsync(id);
+            try
+            {
+                var role = await _repo.GetByIdAsync(id);
+                if (role == null)
+                    return NotFound("Rôle introuvable.");
 
-            if (role == null)
-                return NotFound($"Aucun rôle trouvé avec l'ID : {id}");
+                var dto = new RoleReadDto
+                {
+                    Id = role.Id,
+                    Nom = role.Nom
+                };
 
-            return Ok(role);
+                return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500,
+                    $"Erreur lors de la récupération du rôle : {ex.Message}");
+            }
         }
 
         
-        // GET : api/role/{name}
-        // Récupère un rôle par son nom
-        
-        [HttpGet("{name}")]
-        public async Task<ActionResult<Role>> GetByName(string name)
-        {
-            var role = await _roleRepository.GetByNameAsync(name);
-
-            if (role == null)
-                return NotFound($"Aucun rôle trouvé avec le nom : {name}");
-
-            return Ok(role);
-        }
-
-        
-        // POST : api/role
-        // Crée un nouveau rôle
+        // Crée un nouveau rôle.
         
         [HttpPost]
-        public async Task<IActionResult> Create(Role role)
+        public async Task<ActionResult> Create([FromBody] RoleCreateDto dto)
         {
-            await _roleRepository.CreateAsync(role);
-
-            return Ok(new
+            try
             {
-                message = "Rôle créé avec succès",
-                role
-            });
+                if (string.IsNullOrWhiteSpace(dto.Nom))
+                    return BadRequest("Le nom du rôle est obligatoire.");
+
+                var role = new Role
+                {
+                    Nom = dto.Nom
+                };
+
+                await _repo.CreateAsync(role);
+                return Ok("Rôle créé avec succès.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500,
+                    $"Erreur lors de la création du rôle : {ex.Message}");
+            }
         }
 
         
-        // DELETE : api/role/{id}
-        // Supprime un rôle par ID
+        // Supprime un rôle par son identifiant.
         
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<ActionResult> Delete(int id)
         {
-            var role = await _roleRepository.GetByIdAsync(id);
+            try
+            {
+                var role = await _repo.GetByIdAsync(id);
+                if (role == null)
+                    return NotFound("Rôle introuvable.");
 
-            if (role == null)
-                return NotFound("Rôle introuvable");
-
-            await _roleRepository.DeleteAsync(id);
-
-            return Ok(new { message = "Rôle supprimé" });
+                await _repo.DeleteAsync(id);
+                return Ok("Rôle supprimé avec succès.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500,
+                    $"Erreur lors de la suppression du rôle : {ex.Message}");
+            }
         }
     }
 }

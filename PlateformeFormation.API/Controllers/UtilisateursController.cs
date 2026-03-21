@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using PlateformeFormation.API.Dtos;
 using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
@@ -6,8 +7,13 @@ using PlateformeFormation.Infrastructure.Services;
 
 namespace PlateformeFormation.API.Controllers
 {
-    [ApiController]
+    
+    // Gère les opérations CRUD sur les utilisateurs.
+    // Réservé aux administrateurs (RoleId = 1).
+    
     [Route("api/[controller]")]
+    [ApiController]
+    [Authorize(Roles = "1")] // Admin uniquement
     public class UtilisateursController : ControllerBase
     {
         private readonly IUtilisateurRepository _repo;
@@ -22,100 +28,145 @@ namespace PlateformeFormation.API.Controllers
         }
 
         
-        // GET : /api/Utilisateurs
+        // Récupère la liste de tous les utilisateurs.
         
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAll()
         {
-            var users = await _repo.GetAllAsync();
-            return Ok(users);
+            try
+            {
+                var users = await _repo.GetAllAsync();
+
+                // Mapping entité -> DTO de réponse
+                var result = users.Select(u => new UserResponseDto
+                {
+                    Id = u.Id,
+                    Nom = u.Nom,
+                    Prenom = u.Prenom,
+                    Email = u.Email,
+                    RoleId = u.RoleId
+                });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Erreur serveur générique, message explicite
+                return StatusCode(500, $"Erreur lors de la récupération des utilisateurs : {ex.Message}");
+            }
         }
 
         
-        // GET : /api/Utilisateurs/{id}
+        // Récupère un utilisateur par son identifiant.
         
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<ActionResult<UserResponseDto>> GetById(int id)
         {
-            var user = await _repo.GetByIdAsync(id);
-            if (user == null)
-                return NotFound("Utilisateur introuvable");
+            try
+            {
+                var user = await _repo.GetByIdAsync(id);
+                if (user == null)
+                    return NotFound("Utilisateur introuvable.");
 
-            return Ok(user);
+                var dto = new UserResponseDto
+                {
+                    Id = user.Id,
+                    Nom = user.Nom,
+                    Prenom = user.Prenom,
+                    Email = user.Email,
+                    RoleId = user.RoleId
+                };
+
+                return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors de la récupération de l'utilisateur : {ex.Message}");
+            }
         }
 
         
-        // POST : /api/Utilisateurs
-        // Création avec HASH automatique
+        // Crée un nouvel utilisateur.
+        // Le mot de passe est hashé avant stockage.
         
         [HttpPost]
-        public async Task<IActionResult> Create(UtilisateurCreateDto dto)
+        public async Task<ActionResult> Create([FromBody] UtilisateurCreateDto dto)
         {
-            // Vérifier si l'email existe déjà
-            var existing = await _repo.GetByEmailAsync(dto.Email);
-            if (existing != null)
-                return BadRequest("Un utilisateur avec cet email existe déjà.");
-
-            // Hash du mot de passe
-            var hashedPassword = _passwordService.HashPassword(dto.Password);
-
-            // Création de l'entité
-            var user = new Utilisateur
+            try
             {
-                Nom = dto.Nom,
-                Prenom = dto.Prenom,
-                Email = dto.Email,
-                MotDePasseHash = hashedPassword,
-                RoleId = dto.RoleId // Int, pas enum
-            };
+                // Vérifier l'unicité de l'email
+                var existing = await _repo.GetByEmailAsync(dto.Email);
+                if (existing != null)
+                    return BadRequest("Un utilisateur avec cet email existe déjà.");
 
-            // Appel au repository
-            await _repo.CreateAsync(user);
+                // Hash du mot de passe
+                var hash = _passwordService.HashPassword(dto.Password);
 
-            return Ok(new
+                var user = new Utilisateur
+                {
+                    Nom = dto.Nom,
+                    Prenom = dto.Prenom,
+                    Email = dto.Email,
+                    MotDePasseHash = hash,
+                    RoleId = dto.RoleId
+                };
+
+                await _repo.CreateAsync(user);
+                return Ok("Utilisateur créé avec succès.");
+            }
+            catch (Exception ex)
             {
-                message = "Utilisateur créé avec succès",
-                utilisateur = user
-            });
+                return StatusCode(500, $"Erreur lors de la création de l'utilisateur : {ex.Message}");
+            }
         }
 
         
-        // Put : /api/Utilisateurs/{id}
+        // Met à jour les informations d'un utilisateur.
+        // Ne change pas le mot de passe ici.
         
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UtilisateurCreateDto dto)
+        public async Task<ActionResult> Update(int id, [FromBody] UtilisateurCreateDto dto)
         {
-            var user = await _repo.GetByIdAsync(id);
-            if (user == null)
-                return NotFound("Utilisateur introuvable");
+            try
+            {
+                var user = await _repo.GetByIdAsync(id);
+                if (user == null)
+                    return NotFound("Utilisateur introuvable.");
 
-            // Hash du mot de passe (si modifié)
-            var hashedPassword = _passwordService.HashPassword(dto.Password);
+                // Mise à jour des champs de base
+                user.Nom = dto.Nom;
+                user.Prenom = dto.Prenom;
+                user.Email = dto.Email;
+                user.RoleId = dto.RoleId;
 
-            user.Nom = dto.Nom;
-            user.Prenom = dto.Prenom;
-            user.Email = dto.Email;
-            user.MotDePasseHash = hashedPassword;
-            user.RoleId = dto.RoleId;
-
-            await _repo.UpdateAsync(user);
-
-            return Ok(new { message = "Utilisateur mis à jour", utilisateur = user });
+                await _repo.UpdateAsync(user);
+                return Ok("Utilisateur mis à jour avec succès.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors de la mise à jour de l'utilisateur : {ex.Message}");
+            }
         }
 
         
-        // Delete : /api/Utilisateurs/{id}
+        // Supprime un utilisateur par son identifiant.
         
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<ActionResult> Delete(int id)
         {
-            var user = await _repo.GetByIdAsync(id);
-            if (user == null)
-                return NotFound("Utilisateur introuvable");
+            try
+            {
+                var user = await _repo.GetByIdAsync(id);
+                if (user == null)
+                    return NotFound("Utilisateur introuvable.");
 
-            await _repo.DeleteAsync(id);
-
-            return Ok(new { message = "Utilisateur supprimé" });
+                await _repo.DeleteAsync(id);
+                return Ok("Utilisateur supprimé avec succès.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors de la suppression de l'utilisateur : {ex.Message}");
+            }
         }
     }
 }

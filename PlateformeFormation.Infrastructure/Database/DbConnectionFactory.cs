@@ -1,21 +1,34 @@
 ﻿using System.Data;
-using Microsoft.Data.SqlClient;              // ✔️ Provider SQL moderne
-using Microsoft.Extensions.Configuration;    // ✔️ Nécessaire pour IConfiguration
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 
-namespace PlateformeFormation.Infrastructure.Database;
-
-public class DbConnectionFactory
+namespace PlateformeFormation.Infrastructure.Database
 {
-    private readonly string _connectionString;
-
-    public DbConnectionFactory(IConfiguration configuration)
+    
+    // Fabrique responsable de la création des connexions SQL.
+    // Utilisée par Dapper pour exécuter les requêtes.
+    
+    public class DbConnectionFactory
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    }
+        private readonly string _connectionString;
 
-    public IDbConnection CreateConnection()
-    {
-        return new SqlConnection(_connectionString);
+        
+        // Charge la chaîne de connexion depuis appsettings.json.
+        
+        public DbConnectionFactory(IConfiguration configuration)
+        {
+            _connectionString = configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException(
+                    "Connection string 'DefaultConnection' not found in appsettings.json.");
+        }
+
+        
+        // Crée une nouvelle connexion SQL (fermée par défaut).
+        // Chaque requête HTTP obtient sa propre connexion.
+        
+        public IDbConnection CreateConnection()
+        {
+            return new SqlConnection(_connectionString);
+        }
     }
 }

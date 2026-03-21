@@ -1,19 +1,38 @@
 ﻿namespace PlateformeFormation.Domain.Entities
 {
     
-    // Entité représentant un utilisateur dans la base SQL.
-
+    // Représente un utilisateur de la plateforme.
+    
     public class Utilisateur
     {
-        public int Id { get; set; }   // PK
-        public string Nom { get; set; } = string.Empty; // Nom
-        public string Prenom { get; set; } = string.Empty; // Prénom
-        public string Email { get; set; } = string.Empty;  // Email unique
-        public string MotDePasseHash { get; set; } = string.Empty; // Hash BCrypt
+        
+        // Identifiant unique de l'utilisateur.
+        
+        public int Id { get; set; }
 
-        /*  RoleId doit être un INT (pas un enum)
-         car la base SQL stocke un int*/
+        
+        // Nom de famille de l'utilisateur.
+        
+        public string Nom { get; set; } = string.Empty;
 
-        public int RoleId { get; set; }   // FK vers Role
+        
+        // Prénom de l'utilisateur.
+        
+        public string Prenom { get; set; } = string.Empty;
+
+        
+        // Adresse email unique.
+        
+        public string Email { get; set; } = string.Empty;
+
+        
+        // Hash BCrypt du mot de passe.
+        
+        public string MotDePasseHash { get; set; } = string.Empty;
+
+        
+        // Identifiant du rôle associé à l'utilisateur.
+        
+        public int RoleId { get; set; }
     }
 }

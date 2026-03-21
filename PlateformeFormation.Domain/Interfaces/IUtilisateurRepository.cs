@@ -1,6 +1,5 @@
 ﻿using PlateformeFormation.Domain.Entities;
 
-
 namespace PlateformeFormation.Domain.Interfaces
 {
     public interface IUtilisateurRepository
@@ -12,10 +11,13 @@ namespace PlateformeFormation.Domain.Interfaces
         // Création d'un utilisateur
         Task CreateAsync(Utilisateur user);
 
-        // Mise à jour
+        // Mise à jour complète
         Task UpdateAsync(Utilisateur user);
 
         // Suppression
         Task DeleteAsync(int id);
+
+        // AJOUT : Mise à jour du mot de passe uniquement
+        Task UpdatePasswordAsync(Utilisateur utilisateur);
     }
 }

@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using PlateformeFormation.API.Dtos;
-using PlateformeFormation.Domain.Entities;
+using PlateformeFormation.API.Dtos.Auth;
 using PlateformeFormation.Domain.Interfaces;
 using PlateformeFormation.Infrastructure.Services;
 using System.IdentityModel.Tokens.Jwt;
@@ -10,102 +10,177 @@ using System.Text;
 
 namespace PlateformeFormation.API.Controllers
 {
-    [ApiController]
+    
+    // Controller responsable de l'authentification, de la génération des tokens JWT
+    // et de la gestion des mots de passe utilisateurs.
+    
     [Route("api/[controller]")]
+    [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly IUtilisateurRepository _repo;
+        private readonly IUtilisateurRepository _utilisateurRepo;
+        private readonly IRoleRepository _roleRepo;
         private readonly PasswordService _passwordService;
         private readonly IConfiguration _config;
 
         public AuthController(
-            IUtilisateurRepository repo,
+            IUtilisateurRepository utilisateurRepo,
+            IRoleRepository roleRepo,
             PasswordService passwordService,
             IConfiguration config)
         {
-            _repo = repo;
+            _utilisateurRepo = utilisateurRepo;
+            _roleRepo = roleRepo;
             _passwordService = passwordService;
             _config = config;
         }
 
+       
+        // Login
+        // Authentifie un utilisateur et renvoie un token JWT si les identifiants sont valides.
+        
         [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginDto dto)
+        public async Task<ActionResult> Login([FromBody] LoginDto dto)
         {
-            var user = await _repo.GetByEmailAsync(dto.Email);
-
-            if (user == null)
-                return Unauthorized("Email inconnu");
-
-            if (!_passwordService.VerifyPassword(dto.Password, user.MotDePasseHash))
-                return Unauthorized("Mot de passe incorrect");
-
-            var claims = new[]
+            try
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Role, user.RoleId.ToString())
-            };
+                // 1) Vérifier si l'utilisateur existe
+                var user = await _utilisateurRepo.GetByEmailAsync(dto.Email);
+                if (user == null)
+                    return Unauthorized("Identifiants invalides.");
 
-            var jwtKey = _config["Jwt:Key"];
-            var jwtIssuer = _config["Jwt:Issuer"];
-            var jwtAudience = _config["Jwt:Audience"];
+                // 2) Vérifier le mot de passe via BCrypt
+                if (!_passwordService.VerifyPassword(dto.MotDePasse, user.MotDePasseHash))
+                    return Unauthorized("Identifiants invalides.");
 
-            if (string.IsNullOrWhiteSpace(jwtKey))
-                throw new Exception("La clé JWT 'Jwt:Key' est manquante dans appsettings.json");
-            if (string.IsNullOrWhiteSpace(jwtIssuer))
-                throw new Exception("Le paramètre 'Jwt:Issuer' est manquant dans appsettings.json");
-            if (string.IsNullOrWhiteSpace(jwtAudience))
-                throw new Exception("Le paramètre 'Jwt:Audience' est manquant dans appsettings.json");
+                // 3) Récupérer le rôle associé
+                var role = await _roleRepo.GetByIdAsync(user.RoleId);
+                if (role == null)
+                    return StatusCode(500, "Rôle utilisateur introuvable.");
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+                // 4) Générer le token JWT
+                var token = GenerateJwtToken(user.Id, user.Nom, role.Id);
 
-            var token = new JwtSecurityToken(
-                issuer: jwtIssuer,
-                audience: jwtAudience,
-                claims: claims,
-                expires: DateTime.Now.AddHours(2),
-                signingCredentials: creds
-            );
-
-            return Ok(new
+                // 5) Retourner les informations utiles au front
+                return Ok(new
+                {
+                    Token = token,
+                    UtilisateurId = user.Id,
+                    Nom = user.Nom,
+                    Prenom = user.Prenom,
+                    RoleId = role.Id,
+                    RoleNom = role.Nom
+                });
+            }
+            catch (Exception ex)
             {
-                token = new JwtSecurityTokenHandler().WriteToken(token)
-            });
+                return StatusCode(500, $"Erreur lors de l'authentification : {ex.Message}");
+            }
         }
 
-        [HttpPost("register")]
-        public async Task<IActionResult> Register(RegisterDto dto)
+
+        // Changer mot de passe
+        // Permet à l'utilisateur connecté (via JWT) de changer son mot de passe.
+
+        [Authorize]
+        [HttpPost("changer-mot-de-passe")]
+        public async Task<ActionResult> ChangerMotDePasse([FromBody] ChangePasswordDto dto)
         {
-            var existing = await _repo.GetByEmailAsync(dto.Email);
-            if (existing != null)
-                return BadRequest("Un utilisateur avec cet email existe déjà.");
-
-            var hashedPassword = _passwordService.HashPassword(dto.Password);
-
-            var user = new Utilisateur
+            try
             {
-                Email = dto.Email,
-                Nom = dto.Nom,
-                Prenom = dto.Prenom,
-                MotDePasseHash = hashedPassword,
-                RoleId = dto.RoleId
+                // 1) Récupérer l'ID utilisateur depuis le token JWT
+                var userId = int.Parse(User.FindFirst("id")?.Value ?? "0");
+                if (userId == 0)
+                    return Unauthorized("Utilisateur non authentifié.");
+
+                // 2) Charger l'utilisateur
+                var user = await _utilisateurRepo.GetByIdAsync(userId);
+                if (user == null)
+                    return NotFound("Utilisateur introuvable.");
+
+                // 3) Vérifier l'ancien mot de passe
+                if (!_passwordService.VerifyPassword(dto.AncienMotDePasse, user.MotDePasseHash))
+                    return BadRequest("L'ancien mot de passe est incorrect.");
+
+                // 4) Générer le nouveau hash
+                user.MotDePasseHash = _passwordService.HashPassword(dto.NouveauMotDePasse);
+
+                // 5) Mise à jour en base
+                await _utilisateurRepo.UpdatePasswordAsync(user);
+
+                return Ok("Mot de passe mis à jour avec succès.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors du changement de mot de passe : {ex.Message}");
+            }
+        }
+
+
+        // Tout ce qui suit est à usage de développement uniquement
+        // Ne pas exposer en production
+        // Token de test (dev only)
+        // Génère un token JWT pour un utilisateur donné (utile en développement).
+
+        [HttpGet("token-test/{userId}")]
+        public async Task<ActionResult> GenererTokenTest(int userId)
+        {
+            try
+            {
+                var user = await _utilisateurRepo.GetByIdAsync(userId);
+                if (user == null)
+                    return NotFound("Utilisateur introuvable.");
+
+                var role = await _roleRepo.GetByIdAsync(user.RoleId);
+                if (role == null)
+                    return StatusCode(500, "Rôle utilisateur introuvable.");
+
+                var token = GenerateJwtToken(user.Id, user.Nom, role.Id);
+
+                return Ok(new { token });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur lors de la génération du token : {ex.Message}");
+            }
+        }
+
+       
+        // Génération du JWT
+              
+        // Génère un JWT signé contenant les informations essentielles de l'utilisateur.
+        
+        private string GenerateJwtToken(int userId, string nom, int roleId)
+        {
+            // 1) Lecture des paramètres JWT depuis appsettings.json
+            var key = _config["Jwt:Key"]!;
+            var issuer = _config["Jwt:Issuer"]!;
+            var audience = _config["Jwt:Audience"]!;
+
+            // 2) Création de la clef de signature
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+            // 3) Claims embarqués dans le token
+            var claims = new[]
+            {
+                new Claim("id", userId.ToString()),                    // ID utilisateur
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString()), // ID standard
+                new Claim(ClaimTypes.Name, nom),                        // Nom utilisateur
+                new Claim(ClaimTypes.Role, roleId.ToString())           // Rôle
             };
 
-            // Appel à CreateAsync (aligné sur l'interface + repository)
-            await _repo.CreateAsync(user);
+            // 4) Construction du token
+            var token = new JwtSecurityToken(
+                issuer: issuer,
+                audience: audience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(4), // Durée de validité
+                signingCredentials: credentials
+            );
 
-            return Ok(new
-            {
-                message = "Utilisateur créé avec succès",
-                utilisateur = new
-                {
-                    user.Id,
-                    user.Email,
-                    user.Nom,
-                    user.Prenom,
-                    user.RoleId
-                }
-            });
+            // 5) Conversion en string
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
 }

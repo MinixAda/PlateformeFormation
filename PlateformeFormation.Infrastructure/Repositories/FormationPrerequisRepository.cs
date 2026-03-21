@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using Dapper;
 using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
@@ -10,28 +10,40 @@ namespace PlateformeFormation.Infrastructure.Repositories
 {
     
     // Repository Dapper gérant les prérequis entre formations.
-    // Contient une gestion explicite des doublons et des erreurs.
+    // Chaque ligne de FormationPrerequis indique qu'une formation A
+    // nécessite la formation B comme prérequis.
     
     public class FormationPrerequisRepository : IFormationPrerequisRepository
     {
         private readonly IDbConnection _db;
 
+        
+        // Le repository reçoit une connexion SQL via l'injection de dépendances.
+        
         public FormationPrerequisRepository(IDbConnection db)
         {
             _db = db;
         }
 
         
-        // Récupère tous les prérequis d'une formation.
+        // Récupère tous les prérequis d'une formation donnée.
         
         public async Task<IEnumerable<FormationPrerequis>> GetPrerequisAsync(int formationId)
         {
-            var sql = @"
-                SELECT FormationId, FormationRequiseId
-                FROM FormationPrerequis
-                WHERE FormationId = @FormationId;";
+            try
+            {
+                var sql = @"
+                    SELECT FormationId, FormationRequiseId
+                    FROM FormationPrerequis
+                    WHERE FormationId = @FormationId;";
 
-            return await _db.QueryAsync<FormationPrerequis>(sql, new { FormationId = formationId });
+                return await _db.QueryAsync<FormationPrerequis>(sql, new { FormationId = formationId });
+            }
+            catch (Exception ex)
+            {
+                // On remonte une exception claire, qui sera interceptée par le middleware global.
+                throw new Exception($"Erreur SQL lors de la récupération des prérequis de la formation {formationId} : {ex.Message}");
+            }
         }
 
         
@@ -40,77 +52,88 @@ namespace PlateformeFormation.Infrastructure.Repositories
         
         public async Task<bool> AddPrerequisAsync(int formationId, int formationRequiseId)
         {
-            var existsSql = @"
-                SELECT COUNT(*)
-                FROM FormationPrerequis
-                WHERE FormationId = @FormationId
-                AND FormationRequiseId = @FormationRequiseId;";
-
-            var exists = await _db.ExecuteScalarAsync<int>(existsSql, new
-            {
-                FormationId = formationId,
-                FormationRequiseId = formationRequiseId
-            });
-
-            if (exists > 0)
-            {
-                // Le prérequis existe déjà, on ne réinsère pas
-                return false;
-            }
-
-            var insertSql = @"
-                INSERT INTO FormationPrerequis (FormationId, FormationRequiseId)
-                VALUES (@FormationId, @FormationRequiseId);";
-
             try
             {
+                // Vérifier si le lien existe déjà pour éviter les doublons.
+                var existsSql = @"
+                    SELECT COUNT(*)
+                    FROM FormationPrerequis
+                    WHERE FormationId = @FormationId
+                    AND FormationRequiseId = @FormationRequiseId;";
+
+                var exists = await _db.ExecuteScalarAsync<int>(existsSql, new
+                {
+                    FormationId = formationId,
+                    FormationRequiseId = formationRequiseId
+                });
+
+                if (exists > 0)
+                    return false;
+
+                // Insertion du nouveau prérequis.
+                var insertSql = @"
+                    INSERT INTO FormationPrerequis (FormationId, FormationRequiseId)
+                    VALUES (@FormationId, @FormationRequiseId);";
+
                 await _db.ExecuteAsync(insertSql, new
                 {
                     FormationId = formationId,
                     FormationRequiseId = formationRequiseId
                 });
+
+                return true;
             }
             catch (Exception ex)
             {
-                // On remonte une erreur explicite au niveau supérieur
-                throw new Exception(
-                    $"Erreur lors de l'ajout du prérequis (FormationId={formationId}, FormationRequiseId={formationRequiseId}) : {ex.Message}");
+                throw new Exception($"Erreur SQL lors de l'ajout du prérequis ({formationId} -> {formationRequiseId}) : {ex.Message}");
             }
-
-            return true;
         }
 
         
-        // Supprime un prérequis.
-        // Retourne false si aucune ligne n'a été supprimée (prérequis inexistant).
+        // Supprime un prérequis entre deux formations.
+        // Retourne true si une ligne a été supprimée.
         
         public async Task<bool> RemovePrerequisAsync(int formationId, int formationRequiseId)
         {
-            var sql = @"
-                DELETE FROM FormationPrerequis
-                WHERE FormationId = @FormationId
-                AND FormationRequiseId = @FormationRequiseId;";
-
-            var rows = await _db.ExecuteAsync(sql, new
+            try
             {
-                FormationId = formationId,
-                FormationRequiseId = formationRequiseId
-            });
+                var sql = @"
+                    DELETE FROM FormationPrerequis
+                    WHERE FormationId = @FormationId
+                    AND FormationRequiseId = @FormationRequiseId;";
 
-            return rows > 0;
+                var rows = await _db.ExecuteAsync(sql, new
+                {
+                    FormationId = formationId,
+                    FormationRequiseId = formationRequiseId
+                });
+
+                return rows > 0;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erreur SQL lors de la suppression du prérequis ({formationId} -> {formationRequiseId}) : {ex.Message}");
+            }
         }
 
         
-        // Vérifie si une formation possède au moins un prérequis.
+        // Indique si une formation possède au moins un prérequis.
         
         public async Task<bool> HasPrerequisAsync(int formationId)
         {
-            var sql = @"
-                SELECT COUNT(*)
-                FROM FormationPrerequis
-                WHERE FormationId = @FormationId;";
+            try
+            {
+                var sql = @"
+                    SELECT COUNT(*)
+                    FROM FormationPrerequis
+                    WHERE FormationId = @FormationId;";
 
-            return await _db.ExecuteScalarAsync<int>(sql, new { FormationId = formationId }) > 0;
+                return await _db.ExecuteScalarAsync<int>(sql, new { FormationId = formationId }) > 0;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erreur SQL lors de la vérification des prérequis de la formation {formationId} : {ex.Message}");
+            }
         }
     }
 }
