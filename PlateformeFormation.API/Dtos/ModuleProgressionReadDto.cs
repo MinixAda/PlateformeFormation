@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PlateformeFormation.API.Dtos.Progression
+namespace PlateformeFormation.API.Dtos
 {
     
     // DTO représentant la progression sur un module.

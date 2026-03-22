@@ -1,7 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PlateformeFormation.API.Dtos.Inscription;
+using PlateformeFormation.API.Dtos;
 using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
 

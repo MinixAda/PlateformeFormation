@@ -9,9 +9,9 @@ namespace PlateformeFormation.Domain.Interfaces
     
     public interface IFormationRepository
     {
-        // ------------------------------
+        
         // FORMATIONS
-        // ------------------------------
+        
 
         
         // Récupère toutes les formations.
@@ -38,9 +38,9 @@ namespace PlateformeFormation.Domain.Interfaces
         
         Task DeleteAsync(int id);
 
-        // ------------------------------
+        
         // MODULES
-        // ------------------------------
+        
 
         
         // Récupère tous les modules d'une formation.

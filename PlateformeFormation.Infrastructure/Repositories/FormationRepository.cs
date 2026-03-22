@@ -20,9 +20,9 @@ namespace PlateformeFormation.Infrastructure.Repositories
             _db = db;
         }
 
-        // ------------------------------
-        // FORMATIONS
-        // ------------------------------
+        
+        // Formations
+        
 
         public async Task<IEnumerable<Formation>> GetAllAsync()
         {
@@ -106,9 +106,9 @@ namespace PlateformeFormation.Infrastructure.Repositories
             }
         }
 
-        // ------------------------------
-        // MODULES
-        // ------------------------------
+        
+        // Modules
+        
 
         public async Task<IEnumerable<Module>> GetModulesByFormationIdAsync(int formationId)
         {

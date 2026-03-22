@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using PlateformeFormation.API.Dtos.Role;
+using PlateformeFormation.API.Dtos;
 using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
 

@@ -1,4 +1,4 @@
-﻿namespace PlateformeFormation.API.Dtos.Role
+﻿namespace PlateformeFormation.API.Dtos
 {
     
     // DTO utilisé pour créer un nouveau rôle.

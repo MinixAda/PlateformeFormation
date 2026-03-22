@@ -1,4 +1,4 @@
-﻿namespace PlateformeFormation.API.Dtos.Inscription
+﻿namespace PlateformeFormation.API.Dtos
 {
     public class InscriptionCreateDto
     {

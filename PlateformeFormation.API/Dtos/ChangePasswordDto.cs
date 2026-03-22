@@ -1,4 +1,6 @@
-﻿namespace PlateformeFormation.API.Dtos.Auth
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace PlateformeFormation.API.Dtos
 {
     public class ChangePasswordDto
     {

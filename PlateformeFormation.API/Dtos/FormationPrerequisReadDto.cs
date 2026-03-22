@@ -1,4 +1,4 @@
-﻿namespace PlateformeFormation.API.Dtos.Prerequis
+﻿namespace PlateformeFormation.API.Dtos
 {
     
     // DTO utilisé pour renvoyer un prérequis au client.

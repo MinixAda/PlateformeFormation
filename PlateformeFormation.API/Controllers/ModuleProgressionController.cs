@@ -1,7 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PlateformeFormation.API.Dtos.Progression;
+using PlateformeFormation.API.Dtos;
 using PlateformeFormation.Domain.Interfaces;
 
 namespace PlateformeFormation.API.Controllers

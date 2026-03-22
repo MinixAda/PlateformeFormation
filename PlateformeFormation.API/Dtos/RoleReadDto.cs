@@ -1,4 +1,4 @@
-﻿namespace PlateformeFormation.API.Dtos.Role
+﻿namespace PlateformeFormation.API.Dtos
 {
     
     // DTO renvoyé au client pour représenter un rôle.

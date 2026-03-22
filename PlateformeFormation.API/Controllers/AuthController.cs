@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using PlateformeFormation.API.Dtos.Auth;
+using PlateformeFormation.API.Dtos;
 using PlateformeFormation.Domain.Interfaces;
 using PlateformeFormation.Infrastructure.Services;
 using System.IdentityModel.Tokens.Jwt;

@@ -1,4 +1,4 @@
-﻿namespace PlateformeFormation.API.Dtos.Auth
+﻿namespace PlateformeFormation.API.Dtos
 {
     
     // DTO utilisé pour la connexion (login).

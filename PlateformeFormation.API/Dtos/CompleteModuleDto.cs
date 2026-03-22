@@ -1,4 +1,4 @@
-﻿namespace PlateformeFormation.API.Dtos.Progression
+﻿namespace PlateformeFormation.API.Dtos
 {
     
     // DTO utilisé pour marquer un module comme terminé.

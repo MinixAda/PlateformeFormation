@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PlateformeFormation.API.Dtos.Prerequis;
 using PlateformeFormation.API.Dtos;
 using PlateformeFormation.Domain.Interfaces;
 
