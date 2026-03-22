@@ -11,15 +11,15 @@ using PlateformeFormation.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
-// 1) Configuration des services et de l'injection de dépendances
-// Ajoute le support MVC / API Controllers.
+/* 
+   1) Controllers(API)
+    */
 
 builder.Services.AddControllers();
 
-
-// 2) Swagger + Support JWT dans Swagger 
-// Permet d'exposer la documentation API + d'envoyer un token JWT dans Swagger.
+/* 
+   2) Swagger + support JWT
+    */
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -30,7 +30,7 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 
-    // Permet d'envoyer un token JWT dans Swagger via le bouton "Authorize"
+    // Ajout du bouton "Authorize" pour JWT
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -39,7 +39,6 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey
     });
 
-    // Oblige Swagger à utiliser le token pour les endpoints protégés
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -56,15 +55,11 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-
-// 3) Fabrication de la connexion SQL
-// DbConnectionFactory encapsule la logique de création de connexions SQL.
+/* 
+   3) DB (Dapper)
+    */
 
 builder.Services.AddSingleton<DbConnectionFactory>();
-
-
-// 4) Injection de la connexion SQL pour Dapper
-// Chaque requête HTTP obtient sa propre connexion SQL.
 
 builder.Services.AddScoped<IDbConnection>(sp =>
 {
@@ -72,10 +67,9 @@ builder.Services.AddScoped<IDbConnection>(sp =>
     return factory.CreateConnection();
 });
 
-
-// 5) Repositories
-// Enregistrement de TOUS les repositories utilisés dans le projet.
-// Chaque requête HTTP obtient sa propre instance.
+/* 
+   4) Repositories
+    */
 
 builder.Services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
@@ -83,19 +77,18 @@ builder.Services.AddScoped<IFormationRepository, FormationRepository>();
 builder.Services.AddScoped<IFormationPrerequisRepository, FormationPrerequisRepository>();
 builder.Services.AddScoped<IInscriptionRepository, InscriptionRepository>();
 builder.Services.AddScoped<IModuleProgressionRepository, ModuleProgressionRepository>();
+builder.Services.AddScoped<IModuleRepository, ModuleRepository>(); // ❗ Correction importante
 
-// ❗ CORRECTION IMPORTANTE : tu avais oublié celui-ci
-builder.Services.AddScoped<IModuleRepository, ModuleRepository>();
+/* 
+   5) Services métiers
+    */
 
+builder.Services.AddSingleton<PasswordService>(); // BCrypt
+builder.Services.AddScoped<JwtService>();         // JWT
 
-// 6) Services métiers (PasswordService, JwtService, etc.)
-
-builder.Services.AddSingleton<PasswordService>(); // BCrypt → stateless
-builder.Services.AddScoped<JwtService>();         // Dépend de IConfiguration
-
-
-// 7) Configuration JWT
-// Lecture des paramètres depuis appsettings.json + validation stricte
+/* 
+   6) config. JWT
+    */
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
@@ -128,23 +121,44 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-
-// 8) Autorisation
+/* 
+   7) autorisation
+    */
 
 builder.Services.AddAuthorization();
 
+/* 
+   8) CORS — PERMET AU FRONT REACT DE SE CONNECTER
+ 8) CORS — Permet au front React de se connecter
+    */
 
-// Build de l'application
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173") // URL du front React
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
+/* 
+   Build
+    */
 
 var app = builder.Build();
 
-
-// 9) Middleware global de gestion des erreurs
+/* 
+   9) MIDDLEWARE GLOBAL D'ERREURS
+Middleware global d'erreurs
+    */
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
-
-// 10) Swagger uniquement en développement
+/* 
+   10) Swagger en dev
+    */
 
 if (app.Environment.IsDevelopment())
 {
@@ -155,28 +169,40 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-
-// 11) Redirection HTTP → HTTPS
+/* 
+   11) HTTPS
+    */
 
 app.UseHttpsRedirection();
 
+/* 
+   12) CORS — doit être avant autthentification
+    */
 
-// 12) Authentification et Autorisation
+app.UseCors("AllowFrontend");
+
+/* 
+   13) AUTHENTICATION + AUTHORIZATION
+Authentification + autorisations
+    */
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-
-// 13) Redirection de la racine vers Swagger
+/* 
+   14) Redirecection racine -->  Swagger
+    */
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-
-// 14) Mapping des controllers
+/* 
+   15) Conrollers
+    */
 
 app.MapControllers();
 
-
-// 15) Lancement de l'application
+/* 
+   16) Run
+    */
 
 app.Run();

@@ -26,9 +26,9 @@ namespace PlateformeFormation.API.Controllers
             _moduleRepo = moduleRepo;
         }
 
-        --------------------------------------
+     
         // GET : Récupérer toutes les formations (public)
-        --------------------------------------
+ 
         [HttpGet]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<FormationReadDto>>> GetAll()
@@ -61,9 +61,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // GET : Récupérer une formation par ID (public)
-        --------------------------------------
+       
         [HttpGet("{id}")]
         [AllowAnonymous]
         public async Task<ActionResult<FormationReadDto>> GetById(int id)
@@ -98,9 +98,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // POST : Créer une formation
-        --------------------------------------
+       
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] FormationCreateDto dto)
         {
@@ -136,9 +136,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // PUT : Mettre à jour une formation
-        --------------------------------------
+       
         [HttpPut("{id}")]
         public async Task<ActionResult> Update(int id, [FromBody] FormationUpdateDto dto)
         {
@@ -172,9 +172,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // DELETE : Supprimer une formation
-        --------------------------------------
+       
         [HttpDelete("{id}")]
         public async Task<ActionResult> Delete(int id)
         {
@@ -198,13 +198,13 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        // ====================================================================
+        // ========
         // MODULES
-        // ====================================================================
+        // ========
 
-        --------------------------------------
+       
         // GET : Récupérer les modules d'une formation
-        --------------------------------------
+       
         [HttpGet("{formationId}/modules")]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<Module>>> GetModules(int formationId)
@@ -220,9 +220,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // POST : Ajouter un module à une formation
-        --------------------------------------
+       
         [HttpPost("{formationId}/modules")]
         public async Task<ActionResult> CreateModule(int formationId, [FromBody] ModuleCreateDto dto)
         {
@@ -255,9 +255,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // PUT : Modifier un module
-        --------------------------------------
+       
         [HttpPut("module/{id}")]
         public async Task<ActionResult> UpdateModule(int id, [FromBody] ModuleUpdateDto dto)
         {
@@ -287,9 +287,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // DELETE : Supprimer un module
-        --------------------------------------
+       
         [HttpDelete("module/{id}")]
         public async Task<ActionResult> DeleteModule(int id)
         {
@@ -314,9 +314,9 @@ namespace PlateformeFormation.API.Controllers
             }
         }
 
-        --------------------------------------
+       
         // Méthode privée : récupère l'utilisateur connecté + son rôle
-        --------------------------------------
+       
         private (int UserId, int RoleId) GetCurrentUser()
         {
             var idClaim = User.FindFirst(ClaimTypes.NameIdentifier);
