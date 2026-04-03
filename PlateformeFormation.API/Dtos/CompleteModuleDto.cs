@@ -1,10 +1,12 @@
-﻿namespace PlateformeFormation.API.Dtos
+﻿
+// API/Dtos/CompleteModuleDto.cs
+
+namespace PlateformeFormation.API.Dtos
 {
-    
-    // DTO utilisé pour marquer un module comme terminé.
-    
+    //DTO reçu par POST /api/ModuleProgression/terminer.</summary>
     public class CompleteModuleDto
     {
+        //ID du module à marquer comme terminé.</summary>
         public int ModuleId { get; set; }
     }
 }

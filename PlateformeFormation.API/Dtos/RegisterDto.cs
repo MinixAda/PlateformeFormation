@@ -1,21 +1,30 @@
-﻿namespace PlateformeFormation.API.Dtos
+﻿
+// API/Dtos/RegisterDto.cs
+//
+// CORRECTION APPLIQUÉE :
+//   RoleId supprimé — le rôle est forcé à 3 (Apprenant) côté serveur.
+//   L'ancienne version avait un RoleId int non-nullable qui provoquait
+//   une valeur 0 si le frontend ne l'envoyait pas, causant une erreur 500.
+
+namespace PlateformeFormation.API.Dtos
 {
-    // DTO utilisé pour l'inscription d'un utilisateur
+    //
+    // DTO reçu par POST /api/auth/register.
+    // Le rôle n'est PAS inclus — il est forcé à "Apprenant" (Id=3)
+    // côté serveur pour empêcher l'auto-attribution de droits élevés.
+    //
     public class RegisterDto
     {
-        // Email obligatoire
-        public string Email { get; set; } = string.Empty;
-
-        // Mot de passe en clair (sera hashé)
-        public string Password { get; set; } = string.Empty;
-
-        // Nom de l'utilisateur
+        //Nom de famille.</summary>
         public string Nom { get; set; } = string.Empty;
 
-        // Prénom de l'utilisateur
+        //Prénom.</summary>
         public string Prenom { get; set; } = string.Empty;
 
-        // Id du rôle (Admin = 1, Formateur = 2, Apprenant = 3)
-        public int RoleId { get; set; }
+        //Adresse email unique — servira d'identifiant de connexion.</summary>
+        public string Email { get; set; } = string.Empty;
+
+        //Mot de passe en clair (sera hashé via BCrypt côté serveur).</summary>
+        public string MotDePasse { get; set; } = string.Empty;
     }
 }

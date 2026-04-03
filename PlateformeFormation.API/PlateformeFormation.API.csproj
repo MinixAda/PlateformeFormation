@@ -1,19 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
-    <PackageReference Include="Swashbuckle.AspNetCore.ReDoc" Version="10.1.5" />
+   <!-- JWT Authentication — Bearer token : correction, version alignée sur .NET 8 (8.0.x)
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" 
+	Version="8.0.7" />
+	   <!-- OpenAPI Models — requis pour OpenApiInfo, OpenApiSecurityScheme, etc.
+      dans la configuration Swagger de Program.cs  -->
+  <PackageReference Include="Microsoft.OpenApi" 
+  Version="1.6.14" />
+  <!-- Swagger / OpenAPI — interface de test et documentation
+      Swashbuckle 6.5.0 est compatible avec .NET 8 et OpenAPI 3.0 -->
+  <PackageReference Include="Swashbuckle.AspNetCore" 
+  Version="6.5.0" />
   </ItemGroup>
 
   <ItemGroup>
+  <!-- Références aux couches métier et infrastructure -->
     <ProjectReference Include="..\PlateformeFormation.Domain\PlateformeFormation.Domain.csproj" />
     <ProjectReference Include="..\PlateformeFormation.Infrastructure\PlateformeFormation.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
+

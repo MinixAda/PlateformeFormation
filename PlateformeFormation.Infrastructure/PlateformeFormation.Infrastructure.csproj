@@ -1,21 +1,44 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
-    <PackageReference Include="Dapper" Version="2.1.72" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0" />
+       <!-- BCrypt — hachage sécurisé des mots de passe , utilisé par PasswordService.HashPassword() et VerifyPassword()-->
+    <PackageReference Include="BCrypt.Net-Next"
+                      Version="4.1.0" />
+      <!-- Dapper — micro-ORM pour les requêtes SQL paramétrées, utilisé par tous les repositories -->
+    <PackageReference Include="Dapper"
+                      Version="2.1.72" />
+					  
+   <!--  Microsoft.Data.SqlClient — pilote SQL Server moderne
+      Remplace System.Data.SqlClient (déprécié)
+      Nécessaire pour la connexion à (localdb)\MSSQLLocalDB -->
+					  
+    <PackageReference Include="Microsoft.Data.SqlClient" 
+	Version="7.0.0" />
+	 <!--  Configuration Abstractions — pour IConfiguration dans DbConnectionFactory et JwtService     -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
-<PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+	
+	
+	
+	
+	    <!-- QuestPDF — génération de PDF pour les attestations
+      Community license (gratuit pour projets éducatifs)
+      ATTENTION : déclarer QuestPDF.Settings.License = LicenseType.Community
+      au démarrage de l'app (Program.cs) —  version 2024.x recommandée pour .NET 8.
+      La version 2026.x dans l'original peut nécessiter Visual Studio 2026+. -->
+    <PackageReference Include="QuestPDF"
+                      Version="2024.10.3" />
+      <!--  ancien package <PackageReference Include="QuestPDF" Version="2026.2.4" />-->
 
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Infrastructure dépend du Domain (interfaces et entités) -->
     <ProjectReference Include="..\PlateformeFormation.Domain\PlateformeFormation.Domain.csproj" />
   </ItemGroup>
 

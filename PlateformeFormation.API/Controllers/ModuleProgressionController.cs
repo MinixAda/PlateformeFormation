@@ -1,4 +1,18 @@
-﻿using System.Security.Claims;
+﻿
+// API/Controllers/ModuleProgressionController.cs
+//
+// CORRECTIONS APPLIQUÉES :
+//   1. Utilise IModuleRepository (cohérent avec l'architecture)
+//      au lieu de _formationRepo.GetModuleByIdAsync()
+//   2. Messages d'erreur plus explicites
+//   3. Gestion d'exceptions complète
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlateformeFormation.API.Dtos;
@@ -6,96 +20,111 @@ using PlateformeFormation.Domain.Interfaces;
 
 namespace PlateformeFormation.API.Controllers
 {
-    
-    // Gère la progression des utilisateurs sur les modules.
-    // Permet de marquer un module comme terminé et de consulter la progression.
-    
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // L'utilisateur doit être connecté
+    [Authorize]
     public class ModuleProgressionController : ControllerBase
     {
         private readonly IModuleProgressionRepository _progressionRepo;
-        private readonly IFormationRepository _formationRepo;
+        private readonly IModuleRepository _moduleRepo;
         private readonly IInscriptionRepository _inscriptionRepo;
 
         public ModuleProgressionController(
             IModuleProgressionRepository progressionRepo,
-            IFormationRepository formationRepo,
+            IModuleRepository moduleRepo,
             IInscriptionRepository inscriptionRepo)
         {
             _progressionRepo = progressionRepo;
-            _formationRepo = formationRepo;
+            _moduleRepo = moduleRepo;
             _inscriptionRepo = inscriptionRepo;
         }
 
         
-        // POST : Marquer un module comme terminé
+        // POST /api/ModuleProgression/terminer
         
-        
+        //
         // Marque un module comme terminé pour l'utilisateur connecté.
-        
+        //
+        // Vérifications :
+        //   1. Le module existe
+        //   2. L'utilisateur est inscrit à la formation parente
+        //   3. Le module n'est pas déjà terminé
+        //
+        // Si tous les modules de la formation sont terminés :
+        //   → L'inscription passe automatiquement au statut "Terminé"
+        //   → L'attestation devient disponible
+        //
         [HttpPost("terminer")]
         public async Task<ActionResult> TerminerModule([FromBody] CompleteModuleDto dto)
         {
             try
             {
-                // Récupérer l'ID utilisateur depuis le JWT
-                int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                    return Unauthorized("Token invalide : identifiant utilisateur manquant.");
 
-                // Vérifier que le module existe
-                var module = await _formationRepo.GetModuleByIdAsync(dto.ModuleId);
+                int userId = int.Parse(userIdClaim.Value);
+
+                // 1) Vérifier que le module existe via IModuleRepository
+                var module = await _moduleRepo.GetByIdAsync(dto.ModuleId);
                 if (module == null)
                     return BadRequest("Le module demandé n'existe pas.");
 
-                // Vérifier que l'utilisateur est inscrit à la formation
-                if (!await _inscriptionRepo.IsAlreadyInscribedAsync(userId, module.FormationId))
-                    return BadRequest("Vous devez être inscrit à la formation pour valider un module.");
+                // 2) Vérifier que l'utilisateur est inscrit à la formation parente
+                bool estInscrit = await _inscriptionRepo
+                    .IsAlreadyInscribedAsync(userId, module.FormationId);
 
-                // Vérifier si le module est déjà terminé
+                if (!estInscrit)
+                    return BadRequest(
+                        "Vous devez être inscrit à la formation pour valider un module.");
+
+                // 3) Vérifier si le module n'est pas déjà terminé
                 if (await _progressionRepo.IsModuleCompletedAsync(userId, dto.ModuleId))
-                    return BadRequest("Ce module est déjà terminé.");
+                    return BadRequest("Ce module est déjà marqué comme terminé.");
 
-                // Marquer le module comme terminé
+                // 4) Enregistrer la complétion (avec DateCompletion = GETDATE())
                 await _progressionRepo.CompleteModuleAsync(userId, dto.ModuleId);
 
-                // Vérifier si tous les modules de la formation sont terminés
-                bool allDone = await _progressionRepo.HasCompletedAllModulesAsync(userId, module.FormationId);
+                // 5) Vérifier si tous les modules de la formation sont terminés
+                bool tousTermines = await _progressionRepo
+                    .HasCompletedAllModulesAsync(userId, module.FormationId);
 
-                if (allDone)
+                if (tousTermines)
                 {
+                    // Passer l'inscription en statut "Terminé"
                     await _inscriptionRepo.MarkAsCompletedAsync(userId, module.FormationId);
-                    return Ok("Module terminé. Tous les modules sont complétés : la formation est maintenant terminée.");
+                    return Ok(
+                        "Module terminé. Félicitations — vous avez complété toute la formation ! " +
+                        "Votre attestation est désormais disponible.");
                 }
 
                 return Ok("Module terminé avec succès.");
             }
             catch (Exception ex)
             {
-                return StatusCode(500, $"Erreur lors de la complétion du module : {ex.Message}");
+                return StatusCode(500, $"Erreur lors de la validation du module : {ex.Message}");
             }
         }
 
         
-        // GET : Récupérer la progression sur une formation
+        // GET /api/ModuleProgression/formation/{formationId}
         
-        
-        // Récupère la progression de l'utilisateur connecté sur une formation.
-        
+        //
+        // Retourne la progression de l'utilisateur connecté sur une formation.
+        // Utilisé par ProgressionPage et AttestationPage côté frontend.
+        //
         [HttpGet("formation/{formationId}")]
-        public async Task<ActionResult<IEnumerable<ModuleProgressionReadDto>>> GetProgression(int formationId)
+        public async Task<ActionResult<IEnumerable<ModuleProgressionReadDto>>> GetProgression(
+            int formationId)
         {
             try
             {
-                // ID utilisateur depuis le JWT
-                int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                    return Unauthorized("Token invalide : identifiant utilisateur manquant.");
 
-                // Vérifier que la formation existe
-                var formation = await _formationRepo.GetByIdAsync(formationId);
-                if (formation == null)
-                    return BadRequest("La formation demandée n'existe pas.");
+                int userId = int.Parse(userIdClaim.Value);
 
-                // Récupérer la progression
                 var progression = await _progressionRepo.GetProgressionAsync(userId, formationId);
 
                 var result = progression.Select(p => new ModuleProgressionReadDto
@@ -109,7 +138,9 @@ namespace PlateformeFormation.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, $"Erreur lors de la récupération de la progression : {ex.Message}");
+                return StatusCode(500,
+                    $"Erreur lors de la récupération de la progression " +
+                    $"(Formation #{formationId}) : {ex.Message}");
             }
         }
     }

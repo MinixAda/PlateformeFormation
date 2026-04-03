@@ -1,33 +1,22 @@
-﻿namespace PlateformeFormation.API.Dtos
+﻿
+// API/Dtos/UtilisateurCreateDto.cs
+
+namespace PlateformeFormation.API.Dtos
 {
-    
-    // DTO utilisé pour créer un utilisateur.
-    
+    //
+    // DTO reçu par POST /api/Utilisateurs (admin crée un utilisateur)
+    // et PUT /api/Utilisateurs/{id} (admin modifie un utilisateur).
+    //
     public class UtilisateurCreateDto
     {
-        
-        // Nom de famille de l'utilisateur.
-        
         public string Nom { get; set; } = string.Empty;
-
-        
-        // Prénom de l'utilisateur.
-        
         public string Prenom { get; set; } = string.Empty;
-
-        
-        // Adresse email unique de l'utilisateur.
-        
         public string Email { get; set; } = string.Empty;
 
-        
-        // Mot de passe en clair (sera hashé avant stockage).
-        
+        //Mot de passe en clair — hashé avant stockage.</summary>
         public string Password { get; set; } = string.Empty;
 
-        
-        // Identifiant du rôle attribué à l'utilisateur.
-        
+        //ID du rôle attribué par l'admin (1, 2 ou 3).</summary>
         public int RoleId { get; set; }
     }
 }

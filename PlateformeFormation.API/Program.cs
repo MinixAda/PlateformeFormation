@@ -1,25 +1,53 @@
-using System.Data;
-using System.Text;
+
+// Program.cs
+//Point d'entrée de l'application ASP.NET Core 10.
+// Ordre du pipeline (important — ne pas modifier) :
+//   1) ErrorHandlingMiddleware --> intercepte toutes les exceptions
+//   2) HTTPS Redirection
+//   3) Cors --> avant Authentication
+//   4. Authentication
+//   5. Authorization
+//   6. Controllers
+//  +
+//   - QcmRepository enregistré (nouveau)
+//   - Initialisation des rôles au démarrage (évite les erreurs 500
+//     si la db est vide et qu'un utilisateur tente de s'inscrire)
+//   - Validation des paramètres JWT améliorée
+//   - Swagger/OpenAPI corrigé pour Swashbuckle 10.1.7
+
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;  // Pour Swashbuckle 10.1.7
 using PlateformeFormation.API.Middleware;
+using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
 using PlateformeFormation.Infrastructure.Database;
 using PlateformeFormation.Infrastructure.Repositories;
 using PlateformeFormation.Infrastructure.Services;
+using QuestPDF.Infrastructure;
+using System.Data;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-/* 
-   1) Controllers(API)
-    */
+
+// QuestPDF : licence Community (obligatoire avant tout appel à des fichiers PDF)
+// Sans cette ligne, QuestPDF lève une exception à la première
+// génération de PDF (même en dev).
+// Community = gratuit pour les projets éducatifs et open-source.
+QuestPDF.Settings.License = LicenseType.Community;
+
+
+// 1) Controllers
 
 builder.Services.AddControllers();
 
-/* 
-   2) Swagger + support JWT
-    */
+
+// 2) Swagger — avec support du bouton Authorize (JWT)
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -27,16 +55,21 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Plateforme Formation API",
-        Version = "v1"
+        Version = "v1",
+        Description = "API REST pour la plateforme de formation avec QCM, " +
+            "attestations, commentaires, signalements et suivi formateurs."
     });
 
-    // Ajout du bouton "Authorize" pour JWT
+    // Bouton "Authorize" dans Swagger UI (fonctionne parfaitement avec Swashbuckle 10.1.7)
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        In = ParameterLocation.Header,
-        Description = "Entrer: Bearer {votre_token_jwt}",
+        Description = "Veuillez entrer un token JWT valide au format : **Bearer {token}**"+
+        "Exemple : Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
         Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
     });
 
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -50,26 +83,25 @@ builder.Services.AddSwaggerGen(c =>
                     Id = "Bearer"
                 }
             },
-            new string[] {}
+            Array.Empty<string>()
         }
     });
 });
 
-/* 
-   3) DB (Dapper)
-    */
 
+// 3) Base de données — Dapper via DbConnectionFactory
+
+// DbConnectionFactory est Singleton (lit la config une fois).
+// IDbConnection est Scoped (une connexion par requête HTTP).
 builder.Services.AddSingleton<DbConnectionFactory>();
-
 builder.Services.AddScoped<IDbConnection>(sp =>
 {
     var factory = sp.GetRequiredService<DbConnectionFactory>();
     return factory.CreateConnection();
 });
 
-/* 
-   4) Repositories
-    */
+
+// 4) Repositories — tous Scoped (cycle de vie par requête HTTP)
 
 builder.Services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
@@ -77,36 +109,50 @@ builder.Services.AddScoped<IFormationRepository, FormationRepository>();
 builder.Services.AddScoped<IFormationPrerequisRepository, FormationPrerequisRepository>();
 builder.Services.AddScoped<IInscriptionRepository, InscriptionRepository>();
 builder.Services.AddScoped<IModuleProgressionRepository, ModuleProgressionRepository>();
-builder.Services.AddScoped<IModuleRepository, ModuleRepository>(); // ❗ Correction importante
+builder.Services.AddScoped<IModuleRepository, ModuleRepository>();
+builder.Services.AddScoped<IQcmRepository, QcmRepository>();  
+//+ nouveau à faire si le tmps
+builder.Services.AddScoped<IAttestationRepository, AttestationRepository>();
+builder.Services.AddScoped<ICommentaireRepository, CommentaireRepository>();
+builder.Services.AddScoped<ISignalementRepository, SignalementRepository>();
+builder.Services.AddScoped<ISuiviFormateurRepository, SuiviFormateurRepository>();
+builder.Services.AddScoped<INoteFormationRepository, NoteFormationRepository>();
 
-/* 
-   5) Services métiers
-    */
+// 5) Services métier
 
-builder.Services.AddSingleton<PasswordService>(); // BCrypt
-builder.Services.AddScoped<JwtService>();         // JWT
+builder.Services.AddSingleton<PasswordService>();
+builder.Services.AddScoped<JwtService>();
+// + faire AttestationService
+// Doit être Scoped (pas Singleton) car il dépend de
+// IAttestationRepository, IUtilisateurRepository, IFormationRepository
+// qui sont eux-mêmes Scoped.
+// Un Singleton ne peut pas dépendre de services Scoped.
+builder.Services.AddScoped<AttestationService>();
 
-/* 
-   6) config. JWT
-    */
+
+// 6) Configuration JWT — validation au démarrage
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
-
+// Validation explicite au démarrage — fail-fast si la config est incomplète
 if (string.IsNullOrWhiteSpace(jwtKey))
-    throw new Exception("La clef JWT 'Jwt:Key' est manquante dans appsettings.json");
+    throw new InvalidOperationException("'Jwt:Key' est manquant dans appsettings.json.");
+
+if (jwtKey.Length < 32)
+    throw new InvalidOperationException("'Jwt:Key' doit contenir au moins 32 caractères.");
 
 if (string.IsNullOrWhiteSpace(jwtIssuer))
-    throw new Exception("Le paramètre 'Jwt:Issuer' est manquant dans appsettings.json");
+    throw new InvalidOperationException("'Jwt:Issuer' est manquant dans appsettings.json.");
 
 if (string.IsNullOrWhiteSpace(jwtAudience))
-    throw new Exception("Le paramètre 'Jwt:Audience' est manquant dans appsettings.json");
+    throw new InvalidOperationException("'Jwt:Audience' est manquant dans appsettings.json.");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = false;
+        // false en dev (HTTP local), true en production (HTTPS obligatoire)
+        options.RequireHttpsMetadata = false;  
         options.SaveToken = true;
 
         options.TokenValidationParameters = new TokenValidationParameters
@@ -117,92 +163,92 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew = TimeSpan.Zero
+            // TimeSpan.Zero = aucune tolérance sur l'expiration du token
+            ClockSkew = TimeSpan.Zero 
         };
     });
 
-/* 
-   7) autorisation
-    */
+
+// 7) Autorisation
 
 builder.Services.AddAuthorization();
 
-/* 
-   8) CORS — PERMET AU FRONT REACT DE SE CONNECTER
- 8) CORS — Permet au front React de se connecter
-    */
+
+// 8) Cors — autorise le frontend React (Vite sur port 5173)
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // URL du front React
+        policy.WithOrigins("http://localhost:5173") // Port vite (par défaut)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
     });
 });
 
-/* 
-   Build
-    */
+
+// Buil
 
 var app = builder.Build();
 
-/* 
-   9) MIDDLEWARE GLOBAL D'ERREURS
-Middleware global d'erreurs
-    */
 
+// 9) Initialisation des rôles au démarrage
+// idempotent : même effet qu'on l'applique 1 ou plusieur fois
+
+using (var scope = app.Services.CreateScope())
+{
+    var roleRepo = scope.ServiceProvider.GetRequiredService<IRoleRepository>();
+    try
+    {
+        await roleRepo.CreateIfNotExistsAsync(new Role { Id = 1, Nom = "Admin" });
+        await roleRepo.CreateIfNotExistsAsync(new Role { Id = 2, Nom = "Formateur" });
+        await roleRepo.CreateIfNotExistsAsync(new Role { Id = 3, Nom = "Apprenant" });
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex,
+            "Impossible d'initialiser les rôles. " +
+            "Vérifiez que la base 'PlateformeFormation' existe " +
+            "et que le script CreateDatabase.sql a été exécuté.");
+    }
+}
+
+
+// Pipeline HTTP (ordre critique !)
+// 1) Gestion d'erreyrs en 1er --> intercepte toutes les exceptions
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
-/* 
-   10) Swagger en dev
-    */
-
+// 2) Swagger (développement uniquement)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Plateforme Formation API v1");
+        c.RoutePrefix = "swagger"; // Accessible à /swagger
     });
 }
 
-/* 
-   11) HTTPS
-    */
-
+// 3) https redirection (recommandé même en dev pour tester les redirections et les cookies sécurisés)
 app.UseHttpsRedirection();
 
-/* 
-   12) CORS — doit être avant autthentification
-    */
-
+// 4) CORS : doit être avant Authentication
+// (un preflight OPTIONS doit recevoir les headers CORS avant d'être authentifié)
 app.UseCors("AllowFrontend");
 
-/* 
-   13) AUTHENTICATION + AUTHORIZATION
-Authentification + autorisations
-    */
-
+// 5) Authentication --> Authorization (impérativement dans cet ordre)
 app.UseAuthentication();
 app.UseAuthorization();
 
-/* 
-   14) Redirecection racine -->  Swagger
-    */
-
+// 6) Redirection racine "/" vers Swagger (pratique en développement)
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-/* 
-   15) Conrollers
-    */
-
+// 7) Controllers
 app.MapControllers();
 
-/* 
-   16) Run
-    */
+
+// Démarrage
 
 app.Run();

@@ -1,10 +1,12 @@
-﻿namespace PlateformeFormation.API.Dtos
+﻿
+// API/Dtos/FormationPrerequisCreateDto.cs
+
+namespace PlateformeFormation.API.Dtos
 {
-    
-    // DTO utilisé pour ajouter un prérequis à une formation.
-    
+    //DTO reçu par POST /api/FormationPrerequis/{formationId}.</summary>
     public class FormationPrerequisCreateDto
     {
+        //ID de la formation qui doit être terminée en prérequis.</summary>
         public int FormationRequiseId { get; set; }
     }
 }

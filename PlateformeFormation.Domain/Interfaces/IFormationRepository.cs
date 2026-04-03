@@ -1,55 +1,54 @@
-﻿using System.Collections.Generic;
+﻿
+// Domain/Interfaces/IFormationRepository.cs
+//
+// Contrat pour la gestion des formations et de leurs modules.
+// Les modules sont accessibles ici pour les opérations de lecture
+// rapide (GetModuleByIdAsync utilisé par ModuleProgressionController).
+// Les opérations CRUD complètes sur les modules passent par IModuleRepository.
+
+
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using PlateformeFormation.Domain.Entities;
 
 namespace PlateformeFormation.Domain.Interfaces
 {
-    
-    // Interface pour la gestion des formations et de leurs modules.
-    
+    //
+    // Contrat pour l'accès aux données des formations et de leurs modules.
+    // Implémenté par FormationRepository dans la couche Infrastructure.
+    //
     public interface IFormationRepository
     {
-        
-        // FORMATIONS
-        
+        // ---- Formations ----------------------------------------
 
-        
-        // Récupère toutes les formations.
-        
+        //Retourne toutes les formations (publiques et privées).</summary>
         Task<IEnumerable<Formation>> GetAllAsync();
 
-        
-        // Récupère une formation par son identifiant.
-        
+        //Retourne une formation par son ID. Null si introuvable.</summary>
         Task<Formation?> GetByIdAsync(int id);
 
-        
-        // Crée une nouvelle formation.
-        
+        //Crée une nouvelle formation en base.</summary>
         Task CreateAsync(Formation formation);
 
-        
-        // Met à jour une formation existante.
-        
+        //Met à jour une formation existante.</summary>
         Task UpdateAsync(Formation formation);
 
-        
-        // Supprime une formation.
-        
+        //Supprime une formation et ses modules (CASCADE) par son ID.</summary>
         Task DeleteAsync(int id);
 
-        
-        // MODULES
-        
+        // ---- Modules (lecture rapide) --------------------------
 
-        
-        // Récupère tous les modules d'une formation.
-        
+        //
+        // Retourne tous les modules d'une formation, triés par Ordre.
+        // Utilisé pour la lecture publique depuis FormationController.
+        //
         Task<IEnumerable<Module>> GetModulesByFormationIdAsync(int formationId);
 
-        
-        // Récupère un module par son identifiant.
-        
+        //
+        // Retourne un module par son ID.
+        // Utilisé par ModuleProgressionController pour vérifier que le module
+        // existe et récupérer son FormationId.
+        //
         Task<Module?> GetModuleByIdAsync(int moduleId);
     }
 }

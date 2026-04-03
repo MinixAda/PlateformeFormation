@@ -1,19 +1,15 @@
-﻿namespace PlateformeFormation.API.Dtos
+﻿
+// API/Dtos/LoginDto.cs
+
+namespace PlateformeFormation.API.Dtos
 {
-    
-    // DTO utilisé pour la connexion (login).
-    
+    //DTO reçu par POST /api/auth/login.</summary>
     public class LoginDto
     {
-        
-        // Email de l'utilisateur.
-        
+        //Adresse email de l'utilisateur.</summary>
         public string Email { get; set; } = string.Empty;
 
-        
-        // Mot de passe en clair saisi par l'utilisateur.
-        // Il sera vérifié par rapport au hash stocké.
-        
+        //Mot de passe en clair (sera vérifié via BCrypt).</summary>
         public string MotDePasse { get; set; } = string.Empty;
     }
 }

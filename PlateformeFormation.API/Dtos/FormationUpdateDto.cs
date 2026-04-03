@@ -1,8 +1,9 @@
-﻿namespace PlateformeFormation.API.Dtos
+﻿
+// API/Dtos/FormationUpdateDto.cs
+
+namespace PlateformeFormation.API.Dtos
 {
-    
-    // DTO utilisé lors de la mise à jour d'une formation.
-    
+    //DTO reçu par PUT /api/Formation/{id}.</summary>
     public class FormationUpdateDto
     {
         public string Titre { get; set; } = string.Empty;
@@ -14,5 +15,8 @@
         public string? Prerequis { get; set; }
         public string? ImageUrl { get; set; }
         public int? DureeMinutes { get; set; }
+
+        //Permet de publier ou dépublier une formation.</summary>
+        public bool EstPublique { get; set; }
     }
 }

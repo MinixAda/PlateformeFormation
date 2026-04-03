@@ -1,7 +1,7 @@
 ﻿namespace PlateformeFormation.API.Dtos
 {
     
-    // DTO utilisé lors de la création d'une formation.
+    // DTO utilisé lors de la création d'une formation
     
     public class FormationCreateDto
     {
@@ -14,5 +14,10 @@
         public string? Prerequis { get; set; }
         public string? ImageUrl { get; set; }
         public int? DureeMinutes { get; set; }
+
+        // Visibilité — bool false par défaut (Formation en mode publication
+        // privée jusqu'à publication)
+        public bool EstPublique { get; set; } = false;
+
     }
 }

@@ -1,4 +1,10 @@
-﻿using System;
+﻿
+// Infrastructure/Repositories/InscriptionRepository.cs
+//
+// Implémentation Dapper du repository des inscriptions.
+
+
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
@@ -8,10 +14,11 @@ using PlateformeFormation.Domain.Interfaces;
 
 namespace PlateformeFormation.Infrastructure.Repositories
 {
-    
-    // Repository Dapper gérant les inscriptions aux formations.
-    // Une inscription lie un utilisateur à une formation, avec un statut.
-    
+    //
+    // Repository Dapper pour la gestion des inscriptions aux formations.
+    // Une inscription lie un utilisateur à une formation avec un statut.
+    // Statuts possibles : "EnCours" | "Terminé"
+    //
     public class InscriptionRepository : IInscriptionRepository
     {
         private readonly IDbConnection _db;
@@ -22,8 +29,13 @@ namespace PlateformeFormation.Infrastructure.Repositories
         }
 
         
-        // Indique si un utilisateur est déjà inscrit à une formation.
+        // IsAlreadyInscribedAsync
         
+        //
+        // Vérifie si un utilisateur est déjà inscrit à une formation.
+        // Appelé avant CreateAsync pour éviter les doublons
+        // (contrainte UQ_Inscription est aussi en SQL en dernier recours).
+        //
         public async Task<bool> IsAlreadyInscribedAsync(int userId, int formationId)
         {
             try
@@ -32,19 +44,33 @@ namespace PlateformeFormation.Infrastructure.Repositories
                     SELECT COUNT(*)
                     FROM Inscription
                     WHERE UtilisateurId = @UserId
-                    AND FormationId = @FormationId;";
+                      AND FormationId  = @FormationId;";
 
-                return await _db.ExecuteScalarAsync<int>(sql, new { UserId = userId, FormationId = formationId }) > 0;
+                var count = await _db.ExecuteScalarAsync<int>(sql, new
+                {
+                    UserId = userId,
+                    FormationId = formationId
+                });
+
+                return count > 0;
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erreur SQL lors de la vérification d'inscription (User {userId}, Formation {formationId}) : {ex.Message}");
+                throw new Exception(
+                    $"Erreur SQL lors de la vérification d'inscription " +
+                    $"(Utilisateur #{userId}, Formation #{formationId}) : {ex.Message}", ex);
             }
         }
 
         
-        // Indique si un utilisateur a terminé une formation (statut = 'Terminé').
+        // HasCompletedFormationAsync
         
+        //
+        // Vérifie si un utilisateur a terminé une formation (statut = "Terminé").
+        // Utilisé par InscriptionController pour valider les prérequis :
+        // l'utilisateur doit avoir TERMINÉ la formation prérequise
+        // avant de s'inscrire à la formation cible.
+        //
         public async Task<bool> HasCompletedFormationAsync(int userId, int formationId)
         {
             try
@@ -53,20 +79,35 @@ namespace PlateformeFormation.Infrastructure.Repositories
                     SELECT COUNT(*)
                     FROM Inscription
                     WHERE UtilisateurId = @UserId
-                    AND FormationId = @FormationId
-                    AND Statut = 'Terminé';";
+                      AND FormationId  = @FormationId
+                      AND Statut       = N'Terminé';";
 
-                return await _db.ExecuteScalarAsync<int>(sql, new { UserId = userId, FormationId = formationId }) > 0;
+                // Note : N'Terminé' pour garantir la gestion de l'accent
+                // avec toutes les collations SQL Server.
+
+                var count = await _db.ExecuteScalarAsync<int>(sql, new
+                {
+                    UserId = userId,
+                    FormationId = formationId
+                });
+
+                return count > 0;
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erreur SQL lors de la vérification de complétion (User {userId}, Formation {formationId}) : {ex.Message}");
+                throw new Exception(
+                    $"Erreur SQL lors de la vérification de complétion " +
+                    $"(Utilisateur #{userId}, Formation #{formationId}) : {ex.Message}", ex);
             }
         }
 
         
-        // Crée une nouvelle inscription.
+        // CreateAsync
         
+        //
+        // Crée une nouvelle inscription avec le statut "EnCours".
+        // DateInscription et Statut sont assignés côté serveur (controller).
+        //
         public async Task CreateAsync(Inscription inscription)
         {
             try
@@ -79,48 +120,69 @@ namespace PlateformeFormation.Infrastructure.Repositories
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erreur SQL lors de la création de l'inscription (User {inscription.UtilisateurId}, Formation {inscription.FormationId}) : {ex.Message}");
+                throw new Exception(
+                    $"Erreur SQL lors de la création de l'inscription " +
+                    $"(Utilisateur #{inscription.UtilisateurId}, Formation #{inscription.FormationId}) : {ex.Message}", ex);
             }
         }
 
         
-        // Récupère toutes les inscriptions d'un utilisateur.
+        // GetByUserAsync
         
+        //
+        // Retourne toutes les inscriptions d'un utilisateur.
+        // Utilisé par GET /api/Inscription/mes-inscriptions.
+        // Le frontend charge ensuite les détails de chaque formation par ID.
+        //
         public async Task<IEnumerable<Inscription>> GetByUserAsync(int userId)
         {
             try
             {
                 var sql = @"
-                    SELECT *
+                    SELECT Id, UtilisateurId, FormationId, DateInscription, Statut
                     FROM Inscription
-                    WHERE UtilisateurId = @UserId;";
+                    WHERE UtilisateurId = @UserId
+                    ORDER BY DateInscription DESC;";
 
                 return await _db.QueryAsync<Inscription>(sql, new { UserId = userId });
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erreur SQL lors de la récupération des inscriptions de l'utilisateur {userId} : {ex.Message}");
+                throw new Exception(
+                    $"Erreur SQL lors de la récupération des inscriptions de l'utilisateur #{userId} : {ex.Message}", ex);
             }
         }
 
         
-        // Marque une formation comme terminée pour un utilisateur.
+        // MarkAsCompletedAsync
         
+        //
+        // Passe le statut d'une inscription à "Terminé".
+        // Appelé automatiquement par ModuleProgressionController
+        // quand HasCompletedAllModulesAsync() retourne true.
+        // Déclenche l'éligibilité à l'attestation de suivi.
+        //
         public async Task MarkAsCompletedAsync(int userId, int formationId)
         {
             try
             {
                 var sql = @"
                     UPDATE Inscription
-                    SET Statut = 'Terminé'
+                    SET Statut = N'Terminé'
                     WHERE UtilisateurId = @UserId
-                    AND FormationId = @FormationId;";
+                      AND FormationId  = @FormationId;";
 
-                await _db.ExecuteAsync(sql, new { UserId = userId, FormationId = formationId });
+                await _db.ExecuteAsync(sql, new
+                {
+                    UserId = userId,
+                    FormationId = formationId
+                });
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erreur SQL lors de la mise à jour du statut 'Terminé' (User {userId}, Formation {formationId}) : {ex.Message}");
+                throw new Exception(
+                    $"Erreur SQL lors du passage en statut 'Terminé' " +
+                    $"(Utilisateur #{userId}, Formation #{formationId}) : {ex.Message}", ex);
             }
         }
     }
