@@ -1,0 +1,53 @@
+{
+  /*
+    // appsettings.json — Configuration PlateformeFormation API
+
+
+    Connexion db :
+      SQL Server LocalDB (intégré à Visual Studio)
+      Authentification Windows (Trusted_Connection=True)
+      Base : PlateformeFormation (créée via CreateDatabase.sql)
+
+    JWT :
+      Sécurité : la clé originale "TaCleUltraSecreteTresLongue123456789"
+      est fonctionnelle (36 chars ≥ 32) néanmoins elle est trop prévisible.
+      En production, remplacer Jwt:Key par une vraie clé aléatoire :
+        PowerShell : [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(64))
+        CLI Linux  : openssl rand -base64 64
+
+      Durée de validité : configurée dans JwtService (4 heures).
+      Adapter : exemple 8h pour usage journalier.
+
+    CORS :
+      Le frontend React (Vite) tourne sur http://localhost:5173 par défaut.
+      À modifier : url dans Program.cs si le port est différent.
+  */
+
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=MINIXONZEROAD\\MINIX;Database=PlateformeFormation;Trusted_Connection=True;TrustServerCertificate=True;"
+  },
+
+  "Jwt": {
+    /*
+      Clé HMAC-SHA256 : minimum 32 caractères (256 bits).
+      Attention : ne jamais committer une vraie clef secrète dans Git.
+      Utiliser les User Secrets en développement :
+        dotnet user-secrets set "Jwt:Key" "VotreVraieCleSecrete..."
+    */
+    "Key": "FormaPro_JwtKey_Changez_Cette_Cle_En_Production_2026!",
+    "Issuer": "PlateformeFormation",
+    "Audience": "PlateformeFormationUsers"
+  },
+
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      /* Logs Dapper SQL en Debug uniquement */
+      "Microsoft.Data.SqlClient": "Warning"
+    }
+  },
+
+
+  "AllowedHosts": "*"
+}

@@ -4,21 +4,20 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>c48a0b06-ea18-438c-9689-e202f7b366ec</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
    <!-- JWT Authentication — Bearer token : correction, version alignée sur .NET 8 (8.0.x)
     -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" 
-	Version="8.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.7" />
 	   <!-- OpenAPI Models — requis pour OpenApiInfo, OpenApiSecurityScheme, etc.
       dans la configuration Swagger de Program.cs  -->
-  <PackageReference Include="Microsoft.OpenApi" 
-  Version="1.6.14" />
+  <PackageReference Include="Microsoft.OpenApi" Version="1.6.14" />
+  <PackageReference Include="Resend" Version="0.2.2" />
   <!-- Swagger / OpenAPI — interface de test et documentation
       Swashbuckle 6.5.0 est compatible avec .NET 8 et OpenAPI 3.0 -->
-  <PackageReference Include="Swashbuckle.AspNetCore" 
-  Version="6.5.0" />
+  <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
 
   <ItemGroup>

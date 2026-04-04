@@ -1,26 +1,9 @@
 
-// Program.cs
-//Point d'entrée de l'application ASP.NET Core 10.
-// Ordre du pipeline (important — ne pas modifier) :
-//   1) ErrorHandlingMiddleware --> intercepte toutes les exceptions
-//   2) HTTPS Redirection
-//   3) Cors --> avant Authentication
-//   4. Authentication
-//   5. Authorization
-//   6. Controllers
-//  +
-//   - QcmRepository enregistré (nouveau)
-//   - Initialisation des rôles au démarrage (évite les erreurs 500
-//     si la db est vide et qu'un utilisateur tente de s'inscrire)
-//   - Validation des paramètres JWT améliorée
-//   - Swagger/OpenAPI corrigé pour Swashbuckle 10.1.7
-
-
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using Microsoft.OpenApi.Models;  // Pour Swashbuckle 10.1.7
+using Microsoft.OpenApi.Models;  // Pour Swashbuckle 
 using PlateformeFormation.API.Middleware;
 using PlateformeFormation.Domain.Entities;
 using PlateformeFormation.Domain.Interfaces;
@@ -28,6 +11,7 @@ using PlateformeFormation.Infrastructure.Database;
 using PlateformeFormation.Infrastructure.Repositories;
 using PlateformeFormation.Infrastructure.Services;
 using QuestPDF.Infrastructure;
+using Resend;                     // Resend pour contact form   
 using System.Data;
 using System.Security.Claims;
 using System.Text;
@@ -63,7 +47,7 @@ builder.Services.AddSwaggerGen(c =>
     // Bouton "Authorize" dans Swagger UI (fonctionne parfaitement avec Swashbuckle 10.1.7)
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Veuillez entrer un token JWT valide au format : **Bearer {token}**"+
+        Description = "Veuillez entrer un token JWT valide au format : **Bearer {token}**" +
         "Exemple : Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
         Name = "Authorization",
         In = ParameterLocation.Header,
@@ -89,8 +73,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 
-// 3) Base de données — Dapper via DbConnectionFactory
-
+// 3) db Dapper via DbConnectionFactory
 // DbConnectionFactory est Singleton (lit la config une fois).
 // IDbConnection est Scoped (une connexion par requête HTTP).
 builder.Services.AddSingleton<DbConnectionFactory>();
@@ -110,7 +93,7 @@ builder.Services.AddScoped<IFormationPrerequisRepository, FormationPrerequisRepo
 builder.Services.AddScoped<IInscriptionRepository, InscriptionRepository>();
 builder.Services.AddScoped<IModuleProgressionRepository, ModuleProgressionRepository>();
 builder.Services.AddScoped<IModuleRepository, ModuleRepository>();
-builder.Services.AddScoped<IQcmRepository, QcmRepository>();  
+builder.Services.AddScoped<IQcmRepository, QcmRepository>();
 //+ nouveau à faire si le tmps
 builder.Services.AddScoped<IAttestationRepository, AttestationRepository>();
 builder.Services.AddScoped<ICommentaireRepository, CommentaireRepository>();
@@ -152,7 +135,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         // false en dev (HTTP local), true en production (HTTPS obligatoire)
-        options.RequireHttpsMetadata = false;  
+        options.RequireHttpsMetadata = false;
         options.SaveToken = true;
 
         options.TokenValidationParameters = new TokenValidationParameters
@@ -164,7 +147,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             // TimeSpan.Zero = aucune tolérance sur l'expiration du token
-            ClockSkew = TimeSpan.Zero 
+            ClockSkew = TimeSpan.Zero
         };
     });
 
@@ -174,7 +157,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 
-// 8) Cors — autorise le frontend React (Vite sur port 5173)
+// 8) Resend — service d'envoi d'emails pour le formulaire de contact
+// La clé API est lue depuis les User Secrets (jamais dans appsettings.json)
+
+builder.Services.AddOptions();
+builder.Services.AddHttpClient<ResendClient>();
+builder.Services.Configure<ResendClientOptions>(o =>
+{
+    o.ApiToken = builder.Configuration["Resend:ApiKey"]!;
+});
+builder.Services.AddTransient<IResend, ResendClient>();
+
+
+// 9) Cors — autorise le frontend React (Vite sur port 5173)
 
 builder.Services.AddCors(options =>
 {
@@ -188,12 +183,12 @@ builder.Services.AddCors(options =>
 });
 
 
-// Buil
+// Build
 
 var app = builder.Build();
 
 
-// 9) Initialisation des rôles au démarrage
+// 10) Initialisation des rôles au démarrage
 // idempotent : même effet qu'on l'applique 1 ou plusieur fois
 
 using (var scope = app.Services.CreateScope())
@@ -217,10 +212,10 @@ using (var scope = app.Services.CreateScope())
 
 
 // Pipeline HTTP (ordre critique !)
-// 1) Gestion d'erreyrs en 1er --> intercepte toutes les exceptions
+// 1O) Gestion d'erreurs en 1er --> intercepte toutes les exceptions
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
-// 2) Swagger (développement uniquement)
+// 11) Swagger (développement uniquement)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -231,21 +226,21 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// 3) https redirection (recommandé même en dev pour tester les redirections et les cookies sécurisés)
+// 12) https redirection (recommandé même en dev pour tester les redirections et les cookies sécurisés)
 app.UseHttpsRedirection();
 
-// 4) CORS : doit être avant Authentication
-// (un preflight OPTIONS doit recevoir les headers CORS avant d'être authentifié)
+// 13) CORS : doit être avant Authentication
+// (un preflight Options doit recevoir les headers CORS avant d'être authentifié)
 app.UseCors("AllowFrontend");
 
-// 5) Authentication --> Authorization (impérativement dans cet ordre)
+// 14) Authentication --> Authorization (impérativement dans cet ordre)
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 6) Redirection racine "/" vers Swagger (pratique en développement)
+// 15) Redirection racine "/" vers Swagger (pratique en développement)
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// 7) Controllers
+// 16) mappage controllers
 app.MapControllers();
 
 
